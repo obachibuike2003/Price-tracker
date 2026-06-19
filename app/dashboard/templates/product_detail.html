@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name | truncate(50) }} — Price Tracker{% endblock %}
+
+{% block content %}
+<div class="product-detail">
+  <div class="detail-header">
+    {% if product.image_url %}
+    <img src="{{ product.image_url }}" alt="{{ product.name }}" class="detail-img">
+    {% endif %}
+
+    <div class="detail-meta">
+      <span class="store-badge {{ product.store | lower | replace(' ', '-') }}">{{ product.store }}</span>
+      {% if product.category %}<span class="category-badge">{{ product.category }}</span>{% endif %}
+      <h1>{{ product.name }}</h1>
+
+      <div class="price-summary">
+        <div class="price-stat">
+          <span class="label">Current</span>
+          <span class="value current-price">
+            {% if product.current_price %}${{ "%.2f" | format(product.current_price) }}{% else %}—{% endif %}
+          </span>
+        </div>
+        <div class="price-stat">
+          <span class="label">All-time Low</span>
+          <span class="value low-price">
+            {% if product.lowest_price %}${{ "%.2f" | format(product.lowest_price) }}{% else %}—{% endif %}
+          </span>
+        </div>
+        <div class="price-stat">
+          <span class="label">All-time High</span>
+          <span class="value high-price">
+            {% if product.highest_price %}${{ "%.2f" | format(product.highest_price) }}{% else %}—{% endif %}
+          </span>
+        </div>
+        {% if product.price_drop_pct > 0 %}
+        <div class="price-stat">
+          <span class="label">Drop from High</span>
+          <span class="value drop-pct">-{{ product.price_drop_pct }}%</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="detail-actions">
+        <a href="{{ product.url }}" target="_blank" rel="noopener" class="btn btn-primary">View on {{ product.store }}</a>
+        <form action="/product/{{ product.id }}/refresh" method="post" style="display:inline">
+          <button type="submit" class="btn btn-secondary">Refresh Now</button>
+        </form>
+        <form action="/product/{{ product.id }}/delete" method="post" style="display:inline"
+              onsubmit="return confirm('Stop tracking this product?')">
+          <button type="submit" class="btn btn-danger">Remove</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Price History Chart -->
+  <section class="chart-section">
+    <h2>Price History</h2>
+    <div class="chart-container">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </section>
+
+  <!-- Price Drop Alert -->
+  <section class="alert-section">
+    <h2>Price Drop Alerts</h2>
+
+    {% if alerts %}
+    <table class="alert-table">
+      <thead>
+        <tr><th>Email</th><th>Target Price</th><th>Status</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for alert in alerts %}
+        <tr>
+          <td>{{ alert.email }}</td>
+          <td>${{ "%.2f" | format(alert.target_price) }}</td>
+          <td>
+            {% if not alert.is_active %}
+              <span class="badge badge-triggered">Triggered</span>
+            {% else %}
+              <span class="badge badge-active">Active</span>
+            {% endif %}
+          </td>
+          <td>{{ alert.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <form action="/alert/{{ alert.id }}/delete" method="post" style="display:inline">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <div class="add-alert-form">
+      <h3>Add Alert</h3>
+      <form method="post" action="/alert/add">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <div class="form-row">
+          <input type="email" name="email" placeholder="your@email.com" required class="form-control">
+          <input type="number" name="target_price" placeholder="Target price (e.g. 299.99)"
+                 step="0.01" min="0" required class="form-control">
+          <button type="submit" class="btn btn-primary">Set Alert</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Raw history table -->
+  <section class="history-section">
+    <h2>Price Log</h2>
+    <table class="history-table">
+      <thead>
+        <tr><th>Date</th><th>Price</th><th>In Stock</th></tr>
+      </thead>
+      <tbody id="historyTable">
+        {% for ph in product.price_history | reverse %}
+        <tr>
+          <td>{{ ph.scraped_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>${{ "%.2f" | format(ph.price) }}</td>
+          <td>{% if ph.in_stock %}<span class="badge badge-active">Yes</span>{% else %}<span class="badge badge-triggered">No</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+(async () => {
+  const resp = await fetch('/api/product/{{ product.id }}/history');
+  const data = await resp.json();
+  if (!data.length) return;
+
+  const labels = data.map(d => new Date(d.scraped_at).toLocaleDateString());
+  const prices = data.map(d => d.price);
+  const minPrice = Math.min(...prices);
+
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Price (USD)',
+        data: prices,
+        borderColor: '#4f46e5',
+        backgroundColor: 'rgba(79,70,229,0.08)',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: prices.map(p => p === minPrice ? '#16a34a' : '#4f46e5'),
+        tension: 0.3,
+        fill: true,
+      }],
+    },
+    options: {
+      responsive: true,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `$${ctx.parsed.y.toFixed(2)}${ctx.parsed.y === minPrice ? ' ⭐ All-time Low' : ''}`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => '$' + v.toFixed(2) },
+          grid: { color: '#e5e7eb' },
+        },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

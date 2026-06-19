@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Price Tracker{% endblock %}
+
+{% block content %}
+<section class="stats-row">
+  <div class="stat-card">
+    <span class="stat-number">{{ stats.total }}</span>
+    <span class="stat-label">Tracked Products</span>
+  </div>
+  <div class="stat-card highlight">
+    <span class="stat-number">{{ stats.with_drop }}</span>
+    <span class="stat-label">Price Drops Detected</span>
+  </div>
+</section>
+
+<div class="section-header">
+  <h2>Tracked Products</h2>
+  <a href="/add" class="btn btn-primary">+ Add Product</a>
+</div>
+
+{% if products %}
+<div class="product-grid">
+  {% for product in products %}
+  <div class="product-card">
+    {% if product.image_url %}
+    <img src="{{ product.image_url }}" alt="{{ product.name }}" class="product-img">
+    {% else %}
+    <div class="product-img-placeholder">No Image</div>
+    {% endif %}
+
+    <div class="product-info">
+      <span class="store-badge {{ product.store | lower | replace(' ', '-') }}">
+        {{ product.store }}
+      </span>
+      {% if product.category %}
+      <span class="category-badge">{{ product.category }}</span>
+      {% endif %}
+      <h3 class="product-name">
+        <a href="/product/{{ product.id }}">{{ product.name | truncate(80) }}</a>
+      </h3>
+
+      <div class="price-row">
+        {% if product.current_price %}
+          <span class="current-price">${{ "%.2f" | format(product.current_price) }}</span>
+          {% if product.lowest_price and product.current_price == product.lowest_price %}
+            <span class="badge badge-low">All-time Low!</span>
+          {% endif %}
+          {% if product.price_drop_pct > 0 %}
+            <span class="badge badge-drop">-{{ product.price_drop_pct }}%</span>
+          {% endif %}
+        {% else %}
+          <span class="no-price">No price data</span>
+        {% endif %}
+      </div>
+
+      {% if product.lowest_price and product.highest_price %}
+      <div class="price-range">
+        <small>Low: ${{ "%.2f" | format(product.lowest_price) }} &nbsp;|&nbsp; High: ${{ "%.2f" | format(product.highest_price) }}</small>
+      </div>
+      {% endif %}
+
+      <div class="card-actions">
+        <a href="/product/{{ product.id }}" class="btn btn-sm">View History</a>
+        <form action="/product/{{ product.id }}/refresh" method="post" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-secondary">Refresh</button>
+        </form>
+        <form action="/product/{{ product.id }}/delete" method="post" style="display:inline"
+              onsubmit="return confirm('Stop tracking this product?')">
+          <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <h3>No products tracked yet.</h3>
+  <p>Start by adding a product URL from Amazon, Best Buy, or Newegg.</p>
+  <a href="/add" class="btn btn-primary">Track Your First Product</a>
+</div>
+{% endif %}
+{% endblock %}

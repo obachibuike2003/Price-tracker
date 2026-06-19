@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Add Product — Price Tracker{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <h2>Track a New Product</h2>
+  <p class="form-hint">Paste a product URL from Amazon, Best Buy, or Newegg. We'll scrape the current price and start tracking it.</p>
+
+  <form method="post" action="/add" class="add-form">
+    <div class="form-group">
+      <label for="url">Product URL *</label>
+      <input type="url" id="url" name="url" required
+             placeholder="https://www.amazon.com/dp/..."
+             class="form-control">
+    </div>
+
+    <div class="form-group">
+      <label for="category">Category</label>
+      <select id="category" name="category" class="form-control">
+        <option value="">— Select category —</option>
+        <option value="Phones">Phones</option>
+        <option value="Laptops">Laptops</option>
+        <option value="Gaming Consoles">Gaming Consoles</option>
+        <option value="Tablets">Tablets</option>
+        <option value="Monitors">Monitors</option>
+        <option value="Components">PC Components</option>
+        <option value="Audio">Audio</option>
+        <option value="TVs">TVs</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <p><strong>Supported stores:</strong></p>
+      <ul class="store-list">
+        {% for store in stores %}
+        <li>{{ store }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg">Fetch &amp; Track</button>
+    <a href="/" class="btn btn-secondary btn-lg">Cancel</a>
+  </form>
+</div>
+{% endblock %}
